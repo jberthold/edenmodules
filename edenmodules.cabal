@@ -1,14 +1,22 @@
-name:		edenmodules
-version:	1.0.2.0
-license:	BSD3
-license-file:	LICENSE
-maintainer:	eden@mathematik.uni-marburg.de
-synopsis:	Semi-explicit parallel programming library
+name:           edenmodules
+version:        1.0.4.0
+license:        BSD3
+license-file:   LICENSE
+maintainer:     eden@mathematik.uni-marburg.de
+synopsis:       Semi-explicit parallel programming library
 description:
-    This package provides a library for semi-explizit parallel programming with Eden.
+    This package provides a library for semi-explicit parallel programming with Eden.
 category:       Control.Parallel
-build-type:     Simple
+build-type:     Configure
 cabal-version:  >=1.6
+
+extra-source-files: 
+                edenmodules.buildinfo.in,
+                configure,
+                configure.ac
+extra-tmp-files:config.status,
+                config.log,
+                edenmodules.buildinfo
 
 source-repository head
     type:     darcs
@@ -20,7 +28,8 @@ library {
         Control.Parallel.Eden.ParPrim
         Control.Parallel.Eden.ParPrimConcHs
         Control.Parallel.Eden.EdenConcHs
-  extensions:	CPP
+        Control.Parallel.Eden.Edi
+  extensions:   CPP
   build-depends: base       >= 4 && < 5,
                  containers >= 0.3 && < 0.5,
                  deepseq    >= 1.1 && < 1.4,
