@@ -1,4 +1,4 @@
-{-# OPTIONS -fglasgow-exts -cpp  -fscoped-type-variables #-}
+{-# OPTIONS -XScopedTypeVariables -XCPP -XMagicHash -XBangPatterns #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Control.Parallel.Eden.ParPrimConcHs
@@ -228,9 +228,6 @@ selfPe = do (pe,_,_) <- myInfo
 data ChanName' a = Chan Int Int Int 
    deriving (Show)
 
-instance NFData a => NFData (ChanName' a) 
-    where rnf (Chan pe proc i) = rnf (pe + proc + i)
-
 -- tweaking fork primop from concurrent haskell... (not returning threadID)
 {-# NOINLINE fork #-}
 fork :: IO () -> IO ()
@@ -248,17 +245,19 @@ fork action = do (pe,p,_) <- myInfo
 -- creation of one placeholder and one new inport
 -- returns consistent channel type (channel of same type as data)
 createC :: IO ( ChanName' a, a )
-createC = do (pe,p,_) <- myInfo
-             id <- freshId
+createC = do (!pe,!p,_) <- myInfo
+             !id <- freshId
+             -- Bang patterns make sure all components of ChanName' are
+             -- evaluated when channel is demanded. We get rnf = rwhnf for
+             -- ChanName' outside. The real primitive does this by nature.
              var <- newEmptyMVar
 	     trace ("new channel in " ++ show (pe,p) ++ ", ID=" ++ show id)
              cList <- takeMVar chs
-	     let c = Chan pe p id
-                 x = unsafePerformIO $ readMVar var
+	     let x = unsafePerformIO $ readMVar var
 		 x' = fromDyn (error "createC cast") x
              putMVar chs (Map.insert id (Nothing,var) cList)
 	     trace "channel created!"
-             return (c, x' )
+             return (Chan pe p id, x' )
 
 -- connect a thread to a channel
 connectToPort :: ChanName' a -> IO ()
