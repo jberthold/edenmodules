@@ -18,13 +18,6 @@
 -- Eden Group Marburg
 --
 
-#if defined(NOT_PARALLEL)
--- re-export Eden implementation based on Concurrent/Multicore Haskell
-module Control.Parallel.Eden(module Control.Parallel.Eden.EdenConcHs) where
-import Control.Parallel.Eden.EdenConcHs
-#else
--- whole rest of the file
-
 module Control.Parallel.Eden(
         -- * Basic Eden	
         -- ** Process definition
@@ -104,9 +97,14 @@ module Control.Parallel.Eden(
 
 import Control.Concurrent      -- Instances only
 import System.IO.Unsafe(unsafePerformIO) -- for functional face
-    
+#if defined(NOT_PARALLEL)    
+import qualified Control.Parallel.Eden.ParPrimConcHs as ParPrim
+import Control.Parallel.Eden.ParPrimConcHs hiding(noPe,selfPe)
+#else
 import qualified Control.Parallel.Eden.ParPrim as ParPrim
 import Control.Parallel.Eden.ParPrim hiding(noPe,selfPe)
+#endif 
+  -- NOT_PARALLEL
 import Control.DeepSeq (NFData(..))
 import Control.Seq -- reexported!
         (Strategy, using, r0, rseq, rdeepseq, seqList, seqFoldable)
@@ -659,6 +657,3 @@ write9 (c1,c2,c3,c4,c5,c6,c7,c8,c9) (x1,x2,x3,x4,x5,x6,x7,x8,x9) = do
         fork (sendVia c7 x7)
         fork (sendVia c8 x8)
         sendVia c9 x9
-
-#endif
--- NOT_PARALLEL

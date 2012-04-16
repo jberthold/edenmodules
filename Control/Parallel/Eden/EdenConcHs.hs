@@ -2,7 +2,7 @@
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Control.Parallel.Eden.EdenConcHs
--- Copyright   :  (c) Philipps Universitaet Marburg 2005-2010
+-- Copyright   :  (c) Philipps Universitaet Marburg 2005-2012
 -- License     :  BSD-style (see the file LICENSE)
 -- 
 -- Maintainer  :  eden@mathematik.uni-marburg.de
@@ -100,8 +100,8 @@ module Control.Parallel.Eden.EdenConcHs(
 import Control.Concurrent      -- Instances only
 import System.IO.Unsafe(unsafePerformIO) -- for functional face
     
-import qualified Control.Parallel.Eden.ParPrim as ParPrim
-import Control.Parallel.Eden.ParPrim hiding(noPe,selfPe)
+import qualified Control.Parallel.Eden.ParPrimConcHs as ParPrim
+import Control.Parallel.Eden.ParPrimConcHs hiding(noPe,selfPe)
 import Control.DeepSeq (NFData(..))
 import Control.Seq -- reexported!
         (Strategy, using, r0, rseq, rdeepseq, seqList, seqFoldable)
@@ -169,6 +169,7 @@ instantiateAt :: (Trans a, Trans b) => Int -- ^ Machine number
                  -> Process a b            -- ^Process abstraction
                  -> a                      -- ^Process input
                  -> PA b                   -- ^Process output
+
 -- | Instantiates a process abstraction on a remote machine, sends the input 
 --  of type a and returns the process output of type b. 
 ( # )         :: (Trans a, Trans b) 

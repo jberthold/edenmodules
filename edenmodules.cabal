@@ -19,8 +19,8 @@ extra-tmp-files:config.status,
                 edenmodules.buildinfo
 
 source-repository head
-    type:     darcs
-    location: http://james.mathematik.uni-marburg.de:8080/darcs/edenmodules
+    type:     git
+    location: git://james.mathematik.uni-marburg.de/edenmodules
 
 library {
   exposed-modules:
