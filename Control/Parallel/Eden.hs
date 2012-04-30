@@ -97,14 +97,8 @@ module Control.Parallel.Eden(
 
 import Control.Concurrent      -- Instances only
 import System.IO.Unsafe(unsafePerformIO) -- for functional face
-#if defined(NOT_PARALLEL)    
-import qualified Control.Parallel.Eden.ParPrimConcHs as ParPrim
-import Control.Parallel.Eden.ParPrimConcHs hiding(noPe,selfPe)
-#else
 import qualified Control.Parallel.Eden.ParPrim as ParPrim
 import Control.Parallel.Eden.ParPrim hiding(noPe,selfPe)
-#endif 
-  -- NOT_PARALLEL
 import Control.DeepSeq (NFData(..))
 import Control.Seq -- reexported!
         (Strategy, using, r0, rseq, rdeepseq, seqList, seqFoldable)

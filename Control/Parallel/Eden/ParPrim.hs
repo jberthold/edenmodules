@@ -1,4 +1,4 @@
-{-# OPTIONS -fglasgow-exts -cpp -XBangPatterns #-}
+{-# LANGUAGE CPP, BangPatterns, ForeignFunctionInterface, MagicHash, UnboxedTuples #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Control.Parallel.Eden.ParPrim
@@ -9,12 +9,26 @@
 -- Stability   :  beta
 -- Portability :  not portable
 --
--- Provides primitive functions for explicit distributed functional programming.-- Base module, importing PrimOps => exporting IO actions
+-- Provides primitive functions for explicit distributed functional programming.
+-- Base module, importing PrimOps => exporting IO actions
 -- Depends on the Eden Compiler.
 -- Eden Project, JB
 -- 
 -----------------------------------------------
-
+#if defined(NOT_PARALLEL)    
+#warning !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\
+ Eden BUILD WITH CONCURRENT HASKELL SIMULATION OF PARALLEL PRIMITIVES, \
+ DON'T EXPECT SPEEDUPS! USE THE EDEN VERSION OF GHC FROM \
+ http://www.mathematik.uni-marburg.de/~eden \
+ FOR A PARALLEL BUILD \
+ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+#ifndef __GLASGOW_HASKELL__
+#error Need GHC to compile this simulation.
+#endif
+module Control.Parallel.Eden.ParPrim(module Control.Parallel.Eden.ParPrimConcHs) where
+import Control.Parallel.Eden.ParPrimConcHs
+#else
+-- whole rest of the file
 module Control.Parallel.Eden.ParPrim(
      noPe, selfPe     -- system information    :: Int
      , ChanName'      -- primitive channels (abstract in Eden module and outside)
@@ -121,3 +135,5 @@ sendData mode d
 	                   s' -> (# s', () #)
 	 )
       where !(I# m) = decodeMode mode
+#endif 
+  --NOT_PARALLEL

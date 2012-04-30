@@ -34,11 +34,6 @@ module Control.Parallel.Eden.ParPrimConcHs
 	      ) 
    where
 
-#warning Concurrent Haskell Simulation of Primitives
-#ifndef __GLASGOW_HASKELL__
-#error Need GHC to compile this simulation.
-#endif
-
 import GHC.Base(unsafeCoerce# )
 
 import qualified Data.Map as Map -- collides with prelude functions
