@@ -14,19 +14,19 @@
 --
 -- Depends on GHC. Using standard GHC, you will get a threaded simulation of the 
 -- parallel primitives. 
--- Use the patched GHC-Eden compiler from http:\/\/www.mathematik.uni-marburg.de/~eden 
--- for a parallel build.
+-- Use the special GHC-Eden compiler from http:\/\/www.mathematik.uni-marburg.de/~eden 
+-- for parallel execution with distributed heaps.
 --
 -- Eden Group Marburg ( http:\/\/www.mathematik.uni-marburg.de/~eden )
 -- 
 -----------------------------------------------
 #if defined(NOT_PARALLEL)    
-#warning !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\
- Eden BUILD WITH CONCURRENT HASKELL SIMULATION OF PARALLEL PRIMITIVES, \
+#warning  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\
+ BUILDING A CONCURRENT HASKELL SIMULATION OF THE PARALLEL PRIMITIVES,\
  DON'T EXPECT BIG SPEEDUPS! USE THE EDEN VERSION OF GHC FROM \
  http://www.mathematik.uni-marburg.de/~eden \
- FOR A PARALLEL BUILD \
- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+ FOR A PARALLEL BUILD.\
+ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
 #ifndef __GLASGOW_HASKELL__
 #error Need GHC to compile this simulation.
 #endif
