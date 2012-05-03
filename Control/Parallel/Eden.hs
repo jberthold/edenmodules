@@ -13,9 +13,11 @@
 -- Defines high-level coordination concepts via Prim.Op.s (which are wrapped 
 -- inside ParPrim.hs).
 --
--- Depends on the Eden Compiler.
+-- Depends on GHC. Using standard GHC, you will get a threaded simulation of Eden. 
+-- Use the patched GHC-Eden compiler from http:\/\/www.mathematik.uni-marburg.de/~eden 
+-- for a parallel build.
 --
--- Eden Group Marburg
+-- Eden Group Marburg ( http:\/\/www.mathematik.uni-marburg.de/~eden )
 --
 
 module Control.Parallel.Eden(
@@ -49,15 +51,15 @@ module Control.Parallel.Eden(
         -- implicitly created prior to instantiation. The function version of @#@ is e.g. called @$#@, 
         -- the names of other instantiation functions of this kind contain an @F@.
         , ( # )
-	, instantiate
-	, instantiateAt     -- explicit placement
+	, ( $# )
         , spawn
-        , spawnAt
-        , ( $# )
-	, instantiateF
-	, instantiateFAt     -- explicit placement
         , spawnF
+        , spawnAt
         , spawnFAt
+        , instantiate
+	, instantiateF
+        , instantiateAt     -- explicit placement
+        , instantiateFAt     -- explicit placement
         -- ** Overloaded Communication
         -- | Communication of process inputs and outputs is done implicitly by the Eden runtime system.  
         -- The sent data has to be transmissible i.e. it has to be an instance of type class Trans. All 
@@ -70,9 +72,6 @@ module Control.Parallel.Eden(
 	, Trans(..)
         -- * System information
 	, noPe, selfPe
-        -- * Dynamic Channels
-	, ChanName          -- Communicator a -> IO(), abstract outside
-	, new, parfill      -- using unsafePerformIO
 	-- * Remote Data
 -- | A remote data handle @ RD a @ represents data of type a which may be located on a remote machine. Such a handle is very small and can be passed via intermediate machines with only little communication overhead. You can create a remote data using the function 
 -- release and access a remote value using the function fetch. 
@@ -81,7 +80,10 @@ module Control.Parallel.Eden(
         , RD       
         , release, releasePA, fetch, fetchPA
         , releaseAll, fetchAll
-        , liftRD, liftRD2, liftRD3, liftRD4
+        , liftRD, liftRD2, liftRD3, liftRD4        
+        -- * Dynamic Channels
+	, ChanName          -- Communicator a -> IO(), abstract outside
+	, new, parfill      -- using unsafePerformIO
 	-- * Nondeterminism               
 	, merge, mergeProc  -- merge, as specified in Eden language, but function!
 	-- * Deprecated legacy code for Eden 5
@@ -154,24 +156,75 @@ selfPe = unsafePerformIO ParPrim.selfPe
 process       :: (Trans a, Trans b) 
                  => (a -> b) -- ^ Input function
                  -> Process a b                 -- ^ Process abstraction from input function
+process f = Proc f_remote
+    where f_remote (Comm sendResult) inCC 
+	      = do (sendInput, input) <- createComm
+		   connectToPort inCC
+		   sendData Data sendInput
+		   sendResult (f input)
+
 
 -- | Instantiates a process on a remote machine, sends the input 
 --  of type a and returns the process output of type b in the parallel action monad, thus it can be combined to a larger parallel action.
 instantiate   :: (Trans a, Trans b) => Process a b -- ^Process abstraction
                   -> a                             -- ^Process input
                   -> PA b                          -- ^Process output
+instantiate = instantiateAt 0
+
 
 -- | Instantiation with explicit placement (see instantiate).
 instantiateAt :: (Trans a, Trans b) => Int -- ^ Machine number
                  -> Process a b            -- ^Process abstraction
                  -> a                      -- ^Process input
                  -> PA b                   -- ^Process output
+instantiateAt p (Proc f_remote) procInput
+    = PA $ do 
+         (sendResult,  r  )     <- createComm  -- result communicator
+	 (inCC, Comm sendInput) <- createC     -- reply: input communicator
+	 sendData (Instantiate p) 
+		  (f_remote sendResult inCC)
+	 fork (sendInput procInput)
+	 return r
+
+
+-- combined processes creation and instantiation
+-- | Instantiates a process defined by the given function on a remote machine, sends the input 
+--  of type a and returns the process output of type b in the parallel action monad, thus it can be combined to a larger parallel action.
+instantiateF   :: (Trans a, Trans b) => (a -> b)   -- ^Function for Process
+                  -> a                             -- ^Process input
+                  -> PA b                          -- ^Process output
+instantiateF     = (instantiateAt 0) . process
+
+
+
+-- | Instantiation with explicit placement (see instantiate).
+instantiateFAt :: (Trans a, Trans b) => Int -- ^ Machine number
+                 -> (a -> b)               -- ^Process abstraction
+                 -> a                      -- ^Process input
+                 -> PA b                   -- ^Process output
+instantiateFAt p = instantiateAt p . process
+
+
 -- | Instantiates a process abstraction on a remote machine, sends the input 
 --  of type a and returns the process output of type b. 
+
 ( # )         :: (Trans a, Trans b) 
                  => Process a b        -- ^Process abstraction
                  -> a                  -- ^Process input
                  -> b                  -- ^Process output
+{-# NOINLINE ( # ) #-}
+p # x = runPA $ instantiateAt 0 p x
+
+
+-- | Instantiates a process defined by the given function on a remote machine, sends the input 
+--  of type a and returns the process output of type b. 
+
+( $# )         :: (Trans a, Trans b) 
+                 => (a -> b)           -- ^Process abstraction
+                 -> a                  -- ^Process input
+                 -> b                  -- ^Process output
+{-# NOINLINE ( $# ) #-}
+f $# x = runPA $ instantiateAt 0 (process f) x       -- better defined directly because of NOINLINE ( # )?
 
 -- | Instantiates a list of process abstractions on remote machines 
 --  with corresponding inputs of type a and returns the processes 
@@ -183,33 +236,23 @@ spawn :: (Trans a,Trans b)
          => [Process a b] -- ^Process abstractions
          -> [a]           -- ^Process inputs
          -> [b]           -- ^Process outputs
+{-# NOINLINE spawn #-}
+spawn = spawnAt [0]
+
 
 -- | Same as @ spawn @ , but with an additional @[Int]@ argument that specifies 
 --  where to instantiate the processes. 
 spawnAt :: (Trans a,Trans b) 
-           => [Int]          -- ^ Machine numbers
+           => [Int]          -- ^Machine numbers
            -> [Process a b]  -- ^Process abstractions
            -> [a]            -- ^Process inputs
            -> [b]            -- ^Process outputs
-
--- combined processes creation and instantiation
--- | Instantiates a process defined by the given function on a remote machine, sends the input 
---  of type a and returns the process output of type b in the parallel action monad, thus it can be combined to a larger parallel action.
-instantiateF   :: (Trans a, Trans b) => (a -> b)   -- ^Function for Process
-                  -> a                             -- ^Process input
-                  -> PA b                          -- ^Process output
-                  
--- | Instantiation with explicit placement (see instantiate).
-instantiateFAt :: (Trans a, Trans b) => Int -- ^ Machine number
-                 -> (a -> b)               -- ^Process abstraction
-                 -> a                      -- ^Process input
-                 -> PA b                   -- ^Process output
--- | Instantiates a process defined by the given function a remote machine, sends the input 
---  of type a and returns the process output of type b. 
-( $# )         :: (Trans a, Trans b) 
-                 => (a -> b)           -- ^Process abstraction
-                 -> a                  -- ^Process input
-                 -> b                  -- ^Process output
+{-# NOINLINE spawnAt #-}
+spawnAt pos ps is 
+    = runPA $ 
+           sequence
+              [instantiateAt st p i |
+              (st,p,i) <- zip3 (cycle pos) ps is]
 
 -- | Instantiates processes defined by the given list of functions on remote machines 
 --  with corresponding inputs of type a and returns the processes 
@@ -221,6 +264,9 @@ spawnF :: (Trans a,Trans b)
          => [a -> b]      -- ^Process abstractions
          -> [a]           -- ^Process inputs
          -> [b]           -- ^Process outputs
+{-# NOINLINE spawnF #-}
+spawnF           =  spawnAt [0] . map process
+
 
 -- | Same as @ spawnF @ , but with an additional @[Int]@ argument that specifies 
 --  where to instantiate the processes. 
@@ -229,6 +275,9 @@ spawnFAt :: (Trans a,Trans b)
            -> [a -> b]       -- ^Process abstractions
            -> [a]            -- ^Process inputs
            -> [b]            -- ^Process outputs
+{-# NOINLINE spawnFAt #-}
+spawnFAt pos     = spawnAt pos . map process
+
 
 
 -- | Process abstractions of type @ Process a b @ can be created with function 
@@ -239,51 +288,6 @@ data Process a b
 	    ChanName' (ChanName a) -> -- send input Comm., not overloaded
 	    IO ()
 	   )
-
-process f = Proc f_remote
-    where f_remote (Comm sendResult) inCC 
-	      = do (sendInput, input) <- createComm
-		   connectToPort inCC
-		   sendData Data sendInput
-		   sendResult (f input)
-
-instantiate = instantiateAt 0
-
-instantiateAt p (Proc f_remote) procInput
-    = PA $ do 
-         (sendResult,  r  )     <- createComm  -- result communicator
-	 (inCC, Comm sendInput) <- createC     -- reply: input communicator
-	 sendData (Instantiate p) 
-		  (f_remote sendResult inCC)
-	 fork (sendInput procInput)
-	 return r
-
-{-# NOINLINE ( # ) #-}
-p # x = runPA $ instantiateAt 0 p x
-
-{-# NOINLINE spawn #-}
-spawn = spawnAt [0]
-
-{-# NOINLINE spawnAt #-}
-spawnAt pos ps is 
-    = runPA $ 
-           sequence
-              [instantiateAt st p i |
-              (st,p,i) <- zip3 (cycle pos) ps is]
-
-
-instantiateF     = (instantiateAt 0) . process
-
-instantiateFAt p = instantiateAt p . process
-
-{-# NOINLINE ( $# ) #-}
-($#)             = ( # ) . process       -- better defined directly because of NOINLINE ( # )?
-
-{-# NOINLINE spawnF #-}
-spawnF           =  spawnAt [0] . map process
-
-{-# NOINLINE spawnFAt #-}
-spawnFAt pos     = spawnAt pos . map process
 
 
 ----------------- merge function, borrowed from Concurrent Haskell -------
@@ -322,8 +326,8 @@ type ChanName a = Comm a -- provide old Eden interface to the outside world
 
 {-# NOINLINE new #-}
 -- | A channel can be created with the function new (this is an unsafe side 
--- effect!). It takes a function, who's
--- first parameter is the channel name @ChanName a@ and who's second parameter 
+-- effect!). It takes a function, whose
+-- first parameter is the channel name @ChanName a@ and whose second parameter 
 -- is the value of type a that will be received lazily in the future. The 
 -- @ChanName@ and the value of type a can be used in the body of the parameter 
 -- function to create the output of type @b@. The output of the parameter 
@@ -333,8 +337,11 @@ type ChanName a = Comm a -- provide old Eden interface to the outside world
 -- @new (\channame val -> (channame,val))@ 
 -- returns the tuple @(channame, value)@ .
 new :: Trans a => 
-       (ChanName a -> a-> b)  -- ^ Parameter function that takes a Channel Name and substitute for lazily received value.
+       (ChanName a -> a-> b)  -- ^ Parameter function that takes a channel name and a substitute for the lazily received value.
        -> b        -- ^ Forwarded result
+new chanValCont = unsafePerformIO $ do
+	(chan , val) <- createComm
+	return (chanValCont chan val)
 
 {-# NOINLINE parfill #-}
 -- | You can connect to a reply channel with function @parfill@ (this is an 
@@ -352,9 +359,6 @@ parfill :: Trans a => ChanName a -- ^ @ChanName@ to connect with
 
 parfill (Comm sendVal) val cont 
     = unsafePerformIO (fork (sendVal val) >> return cont)
-new chanValCont = unsafePerformIO $ do
-	(chan , val) <- createComm
-	return (chanValCont chan val)
 
 ------------------------------------------------------------------------
 --Remote Data Def

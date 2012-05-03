@@ -11,14 +11,19 @@
 --
 -- Provides primitive functions for explicit distributed functional programming.
 -- Base module, importing PrimOps => exporting IO actions
--- Depends on the Eden Compiler.
--- Eden Project, JB
+--
+-- Depends on GHC. Using standard GHC, you will get a threaded simulation of the 
+-- parallel primitives. 
+-- Use the patched GHC-Eden compiler from http:\/\/www.mathematik.uni-marburg.de/~eden 
+-- for a parallel build.
+--
+-- Eden Group Marburg ( http:\/\/www.mathematik.uni-marburg.de/~eden )
 -- 
 -----------------------------------------------
 #if defined(NOT_PARALLEL)    
 #warning !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\
  Eden BUILD WITH CONCURRENT HASKELL SIMULATION OF PARALLEL PRIMITIVES, \
- DON'T EXPECT SPEEDUPS! USE THE EDEN VERSION OF GHC FROM \
+ DON'T EXPECT BIG SPEEDUPS! USE THE EDEN VERSION OF GHC FROM \
  http://www.mathematik.uni-marburg.de/~eden \
  FOR A PARALLEL BUILD \
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'

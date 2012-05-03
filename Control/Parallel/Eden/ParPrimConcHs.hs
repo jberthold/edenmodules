@@ -12,7 +12,10 @@
 -- Provides primitive functions for explicit distributed functional programming.
 -- This version: simulates primitives by Concurrent Haskell
 -- (can serve as specification of primitives semantics)
--- Eden Project Marburg
+--
+-- Depends on GHC.
+--
+-- Eden Group Marburg ( http:\/\/www.mathematik.uni-marburg.de/~eden )
 -- 
 -----------------------------------------------
 
