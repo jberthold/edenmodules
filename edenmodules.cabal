@@ -19,7 +19,7 @@ description:
     for a parallel build. See our homepage for more documentation and a 
     tutorial.
 
-category:       Control.Parallel
+category:       Control, Distributed Computing, Eden, Parallelism
 build-type:     Configure
 cabal-version:  >=1.6
 

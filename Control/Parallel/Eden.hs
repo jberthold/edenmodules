@@ -23,7 +23,7 @@
 module Control.Parallel.Eden(
         -- * Basic Eden	
         -- ** Process definition
-        Process, process
+        Process, process, rfi
         -- ** Parallel Action   
         , PA() , runPA
         -- ** Process instantiation
@@ -70,8 +70,8 @@ module Control.Parallel.Eden(
         -- lists are streamed with each element in one packet. The inner list of nested lists is 
         -- also sent in one packet.
 	, Trans(..)
-        -- * System information
-	, noPe, selfPe
+        -- * Explicit placement
+	, noPe, selfPe, Places
 	-- * Remote Data
 -- | A remote data handle @ RD a @ represents data of type a which may be located on a remote machine. Such a handle is very small and can be passed via intermediate machines with only little communication overhead. You can create a remote data using the function 
 -- release and access a remote value using the function fetch. 
@@ -86,7 +86,7 @@ module Control.Parallel.Eden(
 	, new, parfill      -- using unsafePerformIO
 	-- * Nondeterminism               
 	, merge, mergeProc  -- merge, as specified in Eden language, but function!
-	-- * Deprecated legacy code for Eden 5
+        -- * Deprecated legacy code for Eden 5
 	, Lift(..), deLift, createProcess, cpAt
 	-- * Reexported functions from Control.Deepseq
 	, NFData(..)	
@@ -140,7 +140,7 @@ runPA = unsafePerformIO . fromPA
 
 -------------- Eden constructs, also available in seq. version ----------
 
--- system information
+-- explicit placement
 
 -- | Number of (logical) machines in the system
 noPe :: Int
@@ -150,12 +150,15 @@ noPe = unsafePerformIO ParPrim.noPe
 selfPe :: Int
 selfPe = unsafePerformIO ParPrim.selfPe
 
+-- | Places where to instantiate lists of processes
+type Places = [Int]
+
 -- processes and instantiation
 
 -- | Creates a process abstraction @ Process a b @ from a function @ a -> b@.
 process       :: (Trans a, Trans b) 
-                 => (a -> b) -- ^ Input function
-                 -> Process a b                 -- ^ Process abstraction from input function
+                 => (a -> b)     -- ^ Input function
+                 -> Process a b  -- ^ Process abstraction from input function
 process f = Proc f_remote
     where f_remote (Comm sendResult) inCC 
 	      = do (sendInput, input) <- createComm
@@ -163,6 +166,13 @@ process f = Proc f_remote
 		   sendData Data sendInput
 		   sendResult (f input)
 
+-- | Remote function invocation, evaluating a function application remotely
+-- without communicating the input argument
+rfi     :: Trans b 
+           => (a -> b)     -- ^ Input function
+           -> a            -- ^ Offline input
+           -> Process () b -- ^ Process abstraction; process takes unit input
+rfi h x =  process (\ () -> h x)
 
 -- | Instantiates a process on a remote machine, sends the input 
 --  of type a and returns the process output of type b in the parallel action monad, thus it can be combined to a larger parallel action.
