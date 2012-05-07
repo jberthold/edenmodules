@@ -25,30 +25,30 @@
 module Control.Parallel.Eden.EdenConcHs(
         -- * Basic Eden	
         -- ** Process definition
-        Process, process
+        Process, process, rfi
         -- ** Parallel Action   
         , PA() , runPA
         -- ** Process instantiation
         -- | The operator # is the standard operator for process instantiation in Eden. Similar 
-        -- to apply a function @f@ to an argument @x@ (@f x@), you can instantiate 
-        -- a process for f with the argument x (process f # x). The calculation is 
-        -- the same from a denotational point of view. The operational semantics 
-        -- however is different because the operation is executed remotely. If 
-        -- you prefer to expose the side effects of such an 
-        -- operation explicitly with the IO-Meant wrapped in the parallel action monad, you can use function @instantiate@  
-        -- (p # x = runPA (instantiate p x)). It is non trivial to instantiate 
-        -- a list of processes such that all instantiations take place immediately. Therefor Eden  
+        -- to applying a function @f@ to an argument @x@ (@f x@), it instantiates
+        -- a process for f with the argument x (process f # x). The computation is 
+        -- the same from a denotational point of view. The operational semantics, 
+        -- however, is different because the operation is executed remotely. If 
+        -- you prefer to expose the side effects of such an operation explicitly with the 
+        -- IO-Monad wrapped in the parallel action monad, you can use function @instantiate@  
+        -- (p # x = runPA (instantiate p x)). It is non-trivial to instantiate 
+        -- a list of processes such that all instantiations take place immediately. Therefore Eden 
         -- provides function @spawn@ which wraps this commonly used pattern.
         --
-        -- The Eden runtime system takes over process placement of the processes for the basic 
-        -- instantiation functions. In the default setting, process placement is done round robin, 
+        -- The Eden runtime system handles process placementfor the basic instantiation functions.
+        -- In the default setting, process placement is done round robin, 
         -- where the distribution is decided locally by each machine. The runtime option @qrnd@
         -- enables random process placement. Eden further offers functions instantiateAt and 
         -- spawnAt with an additional placement parameter. @instantiateAt i@ instantiates the 
         -- process at machine @i mod noPe@ for a positive @i@ and @instantiateAt 0 = instantiate@.
         -- This is similar for @spawnAt@.
         --
-        -- We provide all instantiation functions also in a version which takes functions instead 
+        -- All instantiation functions are also provided in versions which take functions instead
         -- of process abstractions as parameters. In this case, the process abstractions are 
         -- implicitly created prior to instantiation. The function version of @#@ is e.g. called @$#@, 
         -- the names of other instantiation functions of this kind contain an @F@.
@@ -65,20 +65,20 @@ module Control.Parallel.Eden.EdenConcHs(
         -- ** Overloaded Communication
         -- | Communication of process inputs and outputs is done implicitly by the Eden runtime system.  
         -- The sent data has to be transmissible i.e. it has to be an instance of type class Trans. All 
-        -- data will be evaluated to normal form before it is send in one chunk. Communication is 
-        -- overloaded for lists which are sent as streams element by element and tuples which are 
+        -- data will be evaluated to normal form before it is sent in one message. Communication is 
+        -- overloaded for lists which are sent as streams element by element, and for tuples which are 
         -- sent using concurrent channel connections for each tuple element. Note that lists in 
-        -- tuples are streamed concurrently, but tuples in 
-        -- lists are streamed with each element in one packet. The inner list of nested lists is 
-        -- also sent in one packet.
+        -- tuples are streamed concurrently, but a list of tuples
+        -- is streamed element-wise, with each tuple elements evaluated as a whole. 
+        -- The inner list of nested lists will also be sent in one packet.
 	, Trans(..)
-        -- * System information
-	, noPe, selfPe
+        -- * Explicit placement
+	, noPe, selfPe, Places
 	-- * Remote Data
 -- | A remote data handle @ RD a @ represents data of type a which may be located on a remote machine. Such a handle is very small and can be passed via intermediate machines with only little communication overhead. You can create a remote data using the function 
 -- release and access a remote value using the function fetch. 
 --
--- Notice that you have to fetch a remote value exactly once!
+-- Notice that a remote value may only be fetched exactly once!
         , RD       
         , release, releasePA, fetch, fetchPA
         , releaseAll, fetchAll
@@ -88,7 +88,7 @@ module Control.Parallel.Eden.EdenConcHs(
 	, new, parfill      -- using unsafePerformIO
 	-- * Nondeterminism               
 	, merge, mergeProc  -- merge, as specified in Eden language, but function!
-	-- * Deprecated legacy code for Eden 5
+        -- * Deprecated legacy code for Eden 5
 	, Lift(..), deLift, createProcess, cpAt
 	-- * Reexported functions from Control.Deepseq
 	, NFData(..)	
@@ -101,8 +101,8 @@ module Control.Parallel.Eden.EdenConcHs(
 
 import Control.Concurrent      -- Instances only
 import System.IO.Unsafe(unsafePerformIO) -- for functional face
-import qualified Control.Parallel.Eden.ParPrimConcHs as ParPrim
-import Control.Parallel.Eden.ParPrimConcHs hiding(noPe,selfPe)
+import qualified Control.Parallel.Eden.ParPrim as ParPrim
+import Control.Parallel.Eden.ParPrim hiding(noPe,selfPe)
 import Control.DeepSeq (NFData(..))
 import Control.Seq -- reexported!
         (Strategy, using, r0, rseq, rdeepseq, seqList, seqFoldable)
@@ -142,7 +142,7 @@ runPA = unsafePerformIO . fromPA
 
 -------------- Eden constructs, also available in seq. version ----------
 
--- system information
+-- explicit placement
 
 -- | Number of (logical) machines in the system
 noPe :: Int
@@ -152,12 +152,15 @@ noPe = unsafePerformIO ParPrim.noPe
 selfPe :: Int
 selfPe = unsafePerformIO ParPrim.selfPe
 
+-- | Places where to instantiate lists of processes
+type Places = [Int]
+
 -- processes and instantiation
 
 -- | Creates a process abstraction @ Process a b @ from a function @ a -> b@.
 process       :: (Trans a, Trans b) 
-                 => (a -> b) -- ^ Input function
-                 -> Process a b                 -- ^ Process abstraction from input function
+                 => (a -> b)     -- ^ Input function
+                 -> Process a b  -- ^ Process abstraction from input function
 process f = Proc f_remote
     where f_remote (Comm sendResult) inCC 
 	      = do (sendInput, input) <- createComm
@@ -165,6 +168,13 @@ process f = Proc f_remote
 		   sendData Data sendInput
 		   sendResult (f input)
 
+-- | Remote function invocation, evaluating a function application remotely
+-- without communicating the input argument
+rfi     :: Trans b 
+           => (a -> b)     -- ^ Input function
+           -> a            -- ^ Offline input
+           -> Process () b -- ^ Process abstraction; process takes unit input
+rfi h x =  process (\ () -> h x)
 
 -- | Instantiates a process on a remote machine, sends the input 
 --  of type a and returns the process output of type b in the parallel action monad, thus it can be combined to a larger parallel action.
@@ -175,7 +185,7 @@ instantiate = instantiateAt 0
 
 
 -- | Instantiation with explicit placement (see instantiate).
-instantiateAt :: (Trans a, Trans b) => Int -- ^ Machine number
+instantiateAt :: (Trans a, Trans b) => Int -- ^Machine number
                  -> Process a b            -- ^Process abstraction
                  -> a                      -- ^Process input
                  -> PA b                   -- ^Process output
@@ -218,7 +228,7 @@ instantiateFAt p = instantiateAt p . process
 p # x = runPA $ instantiateAt 0 p x
 
 
--- | Instantiates a process defined by the given function a remote machine, sends the input 
+-- | Instantiates a process defined by the given function on a remote machine, sends the input 
 --  of type a and returns the process output of type b. 
 
 ( $# )         :: (Trans a, Trans b) 
@@ -232,8 +242,8 @@ f $# x = runPA $ instantiateAt 0 (process f) x       -- better defined directly 
 --  with corresponding inputs of type a and returns the processes 
 --  outputs, each of type b. The i-th process is supplied with the 
 --  i-th input generating the i-th output. 
---  The number of processes (= length of output list) is defined by 
---  the shorter input list (thus one list may be infinite).
+--  The number of processes (= length of output list) is determined by 
+--  the length of the shorter input list (thus one list may be infinite).
 spawn :: (Trans a,Trans b) 
          => [Process a b] -- ^Process abstractions
          -> [a]           -- ^Process inputs
@@ -260,8 +270,8 @@ spawnAt pos ps is
 --  with corresponding inputs of type a and returns the processes 
 --  outputs, each of type b. The i-th process is supplied with the 
 --  i-th input generating the i-th output. 
---  The number of processes (= length of output list) is defined by 
---  the shorter input list (thus one list may be infinite).
+--  The number of processes (= length of output list) is determined by 
+--  the length of the shorter input list (thus one list may be infinite).
 spawnF :: (Trans a,Trans b) 
          => [a -> b]      -- ^Process abstractions
          -> [a]           -- ^Process inputs
@@ -328,7 +338,7 @@ type ChanName a = Comm a -- provide old Eden interface to the outside world
 
 {-# NOINLINE new #-}
 -- | A channel can be created with the function new (this is an unsafe side 
--- effect!). It takes a function, whose
+-- effect!). It takes a function whose
 -- first parameter is the channel name @ChanName a@ and whose second parameter 
 -- is the value of type a that will be received lazily in the future. The 
 -- @ChanName@ and the value of type a can be used in the body of the parameter 
@@ -339,7 +349,7 @@ type ChanName a = Comm a -- provide old Eden interface to the outside world
 -- @new (\channame val -> (channame,val))@ 
 -- returns the tuple @(channame, value)@ .
 new :: Trans a => 
-       (ChanName a -> a-> b)  -- ^ Parameter function that takes a Channel Name and substitute for lazily received value.
+       (ChanName a -> a-> b)  -- ^ Parameter function that takes a channel name and a substitute for the lazily received value.
        -> b        -- ^ Forwarded result
 new chanValCont = unsafePerformIO $ do
 	(chan , val) <- createComm
@@ -351,8 +361,8 @@ new chanValCont = unsafePerformIO $ do
 -- second parameter is the value to be send. The third parameter will be the 
 -- functions result after the 
 -- concurrent sending operation is initiated. The sending operation will be 
--- triggered as soon as the result of type @b@ is demanded. Take care that the 
--- demand for the result of @parfill@ does not depend on the sent value, as this 
+-- triggered as soon as the result of type @b@ is demanded. Take care not to 
+-- make the result of @parfill@ depend on the sent value, as this 
 -- will create a deadlock.
 parfill :: Trans a => ChanName a -- ^ @ChanName@ to connect with
            -> a                  -- ^ Data that will be send
@@ -376,7 +386,7 @@ release = runPA . releasePA
 
 
 -- | This establishes a direct connection to the process which released the data in the first place. 
--- Notice that you have to fetch a remote value exactly once! 
+-- Notice that a remote value may only be fetched exactly once! 
 {-# NOINLINE fetch #-}
 fetch   :: Trans a 
            => RD a   -- ^ The Remote Data handle
