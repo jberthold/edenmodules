@@ -1,4 +1,4 @@
-AC_INIT([Eden modules for parallel Haskell], [1.1.0], [eden@informatik.uni-marburg.de], [edenmodules])
+AC_INIT([Eden modules for parallel Haskell], [1.1.0.1], [eden@informatik.uni-marburg.de], [edenmodules])
 
 # Safety check: Ensure that we are in the correct source directory.
 AC_CONFIG_SRCDIR([edenmodules.cabal])
