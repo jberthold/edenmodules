@@ -482,6 +482,7 @@ instance Trans Integer
 instance Trans Bool
 
 instance Trans a  => Trans (Maybe a)
+instance (Trans a,Trans b)  => Trans (Either a b)
 
 instance Trans () 
 -- unit: no communication desired? BREAKS OLD PROGRAMS
