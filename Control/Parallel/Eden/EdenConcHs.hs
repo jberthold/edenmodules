@@ -109,6 +109,8 @@ import Control.Seq -- reexported!
 
 import Control.Parallel(pseq)
 
+import Control.Parallel.Eden.Merge
+
 --------------------------
 -- legacy code for Eden 5:
 
@@ -306,10 +308,11 @@ data Process a b
 -- | Non-deterministically @merge@s a list of lists (usually input streams) 
 -- into a single list. The order of the output list is determined by the 
 -- availability of the inner lists constructors. (Function merge is defined 
--- using Concurrent Haskell's function @nmergeIO@)
+-- using a list merge function @nmergeIO_E@) (similar to nmergeIO from 
+-- Concurrent Haskell, but in a custom version).
 merge :: [[a]]  -- ^ Input lists
          -> [a] -- ^ Nondeterministically merged output list
-merge xss = unsafePerformIO (nmergeIO xss)
+merge xss = unsafePerformIO (nmergeIO_E xss)
 
 -- | same as @ merge @
 mergeProc :: [[a]]  -- ^ Input lists
