@@ -24,9 +24,8 @@ module Control.Parallel.Eden.Merge (
  -- This function merges incoming lists non-deterministically into one
  -- result. 
  -- Its implementation in this module follows the pattern of the
- -- previous one from Control.Concurrent, but replaces a semaphore for a
- -- simple MVar mutex token, and optimises the case of only one remaining
- -- list. 
+ -- previous one from Control.Concurrent, but uses the old simple semaphore 
+ -- implementation, and optimises the case of only one remaining list. 
  nmergeIO_E
  )
 where
@@ -49,6 +48,8 @@ newQSem :: Int -> IO QSem
 newQSem n | n >= 0    = newMVar (n,[])
           | otherwise = error "QSem: negative."
 
+-- This implementation is prone to losing Q signals in use cases
+-- where waiting threads can be killed externally (not the case here).
 qsem_P, qsem_Q :: QSem -> IO ()
 qsem_P sem = mask_ $
              do state <- takeMVar sem
