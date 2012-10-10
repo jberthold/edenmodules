@@ -30,7 +30,7 @@ module Control.Parallel.Eden.Merge (
  )
 where
 
-#if __GLASGOW_HASKELL__ < 706
+#if __GLASGOW_HASKELL__ < 707
 import Control.Concurrent(nmergeIO)
 
 nmergeIO_E = nmergeIO
@@ -42,15 +42,15 @@ import Control.Exception( mask_ )
 import System.IO.Unsafe
 
 -- simplified version of Control.Concurrent.QSem (as of GHC-7.6)
-type QSem = MVar (Int,[MVar ()])
+type QSem_E = MVar (Int,[MVar ()])
 
-newQSem :: Int -> IO QSem
-newQSem n | n >= 0    = newMVar (n,[])
-          | otherwise = error "QSem: negative."
+newQSem_E :: Int -> IO QSem_E
+newQSem_E n | n >= 0    = newMVar (n,[])
+            | otherwise = error "QSem: negative."
 
 -- This implementation is prone to losing Q signals in use cases
 -- where waiting threads can be killed externally (not the case here).
-qsem_P, qsem_Q :: QSem -> IO ()
+qsem_P, qsem_Q :: QSem_E -> IO ()
 qsem_P sem = mask_ $
              do state <- takeMVar sem
                 case state of
@@ -71,7 +71,7 @@ nmergeIO_E lss
     = do let !len = length lss
          tl_node   <- newEmptyMVar
          tl_list   <- newMVar tl_node
-         sem       <- newQSem 1
+         sem       <- newQSem_E 1
          count_var <- newMVar len
          -- start filler threads, one per incoming list
          mapM_ (forkIO . suckIO_E count_var (tl_list, sem) ) lss
@@ -80,7 +80,7 @@ nmergeIO_E lss
          qsem_Q sem
          return val
         
-suckIO_E :: MVar Int -> (MVar (MVar [a]),QSem) -> [a] -> IO ()
+suckIO_E :: MVar Int -> (MVar (MVar [a]),QSem_E) -> [a] -> IO ()
 suckIO_E count_var buff@(tl_list,sem) vs
     = do count <- takeMVar count_var
          if count == 1 
