@@ -1,4 +1,4 @@
-{-# OPTIONS -XCPP #-}
+{-# OPTIONS -XCPP -XGeneralizedNewtypeDeriving #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Control.Parallel.Eden
@@ -106,9 +106,9 @@ import Control.Seq -- reexported!
         (Strategy, using, r0, rseq, rdeepseq, seqList, seqFoldable)
 
 import Control.Parallel(pseq)
-
 import Control.Parallel.Eden.Merge
-
+import Control.Applicative(Applicative(..))
+import Control.Monad.Fix(MonadFix(..))
 --------------------------
 -- legacy code for Eden 5:
 
@@ -128,14 +128,8 @@ cpAt pe p i = runPA (instantiateAt pe p i >>= \x -> return (Lift x))
 
 --------------------parallel action monad--------------------------
 
-newtype PA a = PA { fromPA :: IO a }
+newtype PA a = PA { fromPA :: IO a } deriving (Monad,MonadFix,Functor,Applicative)
  
-instance Monad PA where
- return b       = PA $ return b
- (PA ioX) >>= f = PA $ do 
-   x  <- ioX
-   fromPA $ f x
-
 runPA :: PA a -> a
 runPA = unsafePerformIO . fromPA
 
