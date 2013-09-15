@@ -4,8 +4,8 @@ AC_INIT([Eden modules for parallel Haskell], [1.2.0.0], [eden@informatik.uni-mar
 AC_CONFIG_SRCDIR([edenmodules.cabal])
 
 # figure out GHC to use
-AC_ARG_WITH([compiler],
-            [AC_HELP_STRING([--with-compiler=ARG],
+AC_ARG_WITH([hc],
+            [AC_HELP_STRING([--with-hc=ARG],
 	                    [Use path ARG for GHC (we only support GHC!)])],
 	    [WithGhc="$withval"],
             [if test "$HC" = ""; then
