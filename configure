@@ -611,7 +611,7 @@ SHELL'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
-with_hc
+with_compiler
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1226,7 +1226,7 @@ if test -n "$ac_init_help"; then
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
-  --with-hc=ARG           Use path ARG for GHC (we only support GHC!)
+  --with-compiler=ARG     Use path ARG for GHC (we only support GHC!)
 
 Report bugs to <eden@informatik.uni-marburg.de>.
 _ACEOF
@@ -1662,9 +1662,9 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 # figure out GHC to use
 
-# Check whether --with-hc was given.
-if test "${with_hc+set}" = set; then :
-  withval=$with_hc; WithGhc="$withval"
+# Check whether --with-compiler was given.
+if test "${with_compiler+set}" = set; then :
+  withval=$with_compiler; WithGhc="$withval"
 else
   if test "$HC" = ""; then
 	       # Extract the first word of "ghc", so it can be a program name with args.
