@@ -268,6 +268,7 @@ spawnAt :: (Trans a,Trans b)
            -> [a]            -- ^Process inputs
            -> [b]            -- ^Process outputs
 {-# NOINLINE spawnAt #-}
+spawnAt []  ps is = spawnAt [0] ps is
 spawnAt pos ps is 
     = runPA $ 
            sequence
