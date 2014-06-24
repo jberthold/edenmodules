@@ -1,4 +1,4 @@
-{-# OPTIONS -XCPP #-}
+{-# OPTIONS -XCPP -XGeneralizedNewtypeDeriving -XExistentialQuantification -XDeriveDataTypeable #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Control.Parallel.Eden.EdenConcHs
@@ -108,8 +108,22 @@ import Control.Seq -- reexported!
         (Strategy, using, r0, rseq, rdeepseq, seqList, seqFoldable)
 
 import Control.Parallel(pseq)
-
 import Control.Parallel.Eden.Merge
+import Control.Applicative(Applicative(..))
+import Control.Monad.Fix(MonadFix(..))
+
+-- support for re-throwing exceptions to the receiver of data
+-- Exceptions will propagate through the process network, eventually
+-- reaching the main process.
+import qualified Control.Exception as E
+import Data.Typeable
+
+data RemoteException = forall e . E.Exception e => RemoteException Int e
+                 deriving Typeable
+instance Show RemoteException where
+    show (RemoteException pe e) = show e ++ " (on node " ++ show pe ++ ")"
+
+instance E.Exception RemoteException
 
 --------------------------
 -- legacy code for Eden 5:
@@ -130,14 +144,8 @@ cpAt pe p i = runPA (instantiateAt pe p i >>= \x -> return (Lift x))
 
 --------------------parallel action monad--------------------------
 
-newtype PA a = PA { fromPA :: IO a }
+newtype PA a = PA { fromPA :: IO a } deriving (Monad,MonadFix,Functor,Applicative)
  
-instance Monad PA where
- return b       = PA $ return b
- (PA ioX) >>= f = PA $ do 
-   x  <- ioX
-   fromPA $ f x
-
 runPA :: PA a -> a
 runPA = unsafePerformIO . fromPA
 
@@ -262,6 +270,7 @@ spawnAt :: (Trans a,Trans b)
            -> [a]            -- ^Process inputs
            -> [b]            -- ^Process outputs
 {-# NOINLINE spawnAt #-}
+spawnAt []  ps is = spawnAt [0] ps is
 spawnAt pos ps is 
     = runPA $ 
            sequence
@@ -462,7 +471,15 @@ liftRD4 f x = liftRD3 (f  (fetch x))
 -- Use the default implementation for @write@ and @createComm@ for instances of Trans.
 class NFData a => Trans a where
     write :: a -> IO ()
-    write x = rdeepseq x `pseq` sendData Data x
+    -- exception handler propagates exceptions to receiver (ultimately main)
+    write x = (rdeepseq x `pseq` sendData Data x)
+              `E.catch` -- do not "redecorate" RemoteExceptions 
+              (\e -> sendData Data (E.throw (e::RemoteException)))
+              `E.catch` -- all other exceptions are decorated with origin
+                        -- (see RemoteException above)
+              (\e -> do pe <- ParPrim.selfPe 
+                        let ex = RemoteException pe (e::E.SomeException)
+                        sendData Data (E.throw ex))
 --    write x = unEval $
 --              do x' <- rdeepseq x 
 --                 return (sendData Data x')
@@ -496,8 +513,16 @@ instance Trans ()
 -- stream communication:
 instance (Trans a) => Trans [a]  where 
     write l@[]   = sendData Data l
-    --    write (x:xs) = (rnf x `seq` sendData Stream x) >>    
-    write (x:xs) = (write' x) >> write xs
+    -- exception handler propagates exceptions to receiver (ultimately main)
+    -- and closes the stream
+    write (x:xs) = ((write' x) >> write xs)
+              `E.catch` -- do not "redecorate" RemoteExceptions 
+              (\e -> sendData Data (E.throw (e::RemoteException)))
+              `E.catch` -- all other exceptions are decorated with origin
+                        -- (see RemoteException above)
+              (\e -> do pe <- ParPrim.selfPe 
+                        let ex = RemoteException pe (e::E.SomeException)
+                        sendData Data (E.throw ex))
       where
         write' x = rdeepseq x `pseq` sendData Stream x
 
