@@ -336,7 +336,8 @@ mergeProc = merge
 
 newtype Comm a = Comm (a -> IO())
 -- assumed: contained function sends a over a (previously wired-in) channel
-instance NFData (Comm a)
+instance NFData (Comm a) where rnf (Comm x) = seq x ()
+                         -- only rwhnf possible, as x is a function
 
 -- | A channel name @ChanName a@ is a handle for a reply channel. The channel 
 -- can be created with the function new and you can connect to such a channel 

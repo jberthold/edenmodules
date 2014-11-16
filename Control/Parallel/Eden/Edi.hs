@@ -76,8 +76,8 @@ spawnArgsProcessAt pe argsAction args
 -- Communication:
 -----------------
 
-instance NFData (ChanName' a) -- defaulting to rwhnf.  
--- Can only be created by ParPrim* operations, so, fine with this default.
+instance NFData (ChanName' a) where rnf x = seq x ()
+-- Can only be created by ParPrim* operations, so, fine with rwhnf.
 
 
 -- creation of n channels in one call, "safe" evaluation
