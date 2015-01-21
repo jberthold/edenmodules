@@ -4,7 +4,7 @@
 -- Module      :  Control.Parallel.Eden.Merge
 -- Copyright   :  (c) Philipps Universitaet Marburg 2012-
 -- License     :  BSD-style (see the file LICENSE)
--- 
+--
 -- Maintainer  :  eden@mathematik.uni-marburg.de
 -- Stability   :  beta
 -- Portability :  not portable
@@ -14,18 +14,18 @@
 -- Eden language definition assumes merge functionality as a base construct.
 --
 -- Eden Group Marburg ( http:\/\/www.mathematik.uni-marburg.de/~eden )
--- 
+--
 -----------------------------------------------
 
 module Control.Parallel.Eden.Merge (
- -- * Non-deterministic merge of lists into one result list.  
+ -- * Non-deterministic merge of lists into one result list.
 
  -- | Previously available in Concurrent Haskell, living here from GHC-7.6 on.
  -- This function merges incoming lists non-deterministically into one
- -- result. 
+ -- result.
  -- Its implementation in this module follows the pattern of the
- -- previous one from Control.Concurrent, but uses the old simple semaphore 
- -- implementation, and optimises the case of only one remaining list. 
+ -- previous one from Control.Concurrent, but uses the old simple semaphore
+ -- implementation, and optimises the case of only one remaining list.
  nmergeIO_E
  )
 where
@@ -59,7 +59,7 @@ qsem_P sem = mask_ $
                                     takeMVar b
                   (n,[])      -> putMVar sem (n-1, [])
                   (n,other)   -> error ("QSem: " ++ show (n, length other))
-qsem_Q sem = mask_ $ 
+qsem_Q sem = mask_ $
              do state <- takeMVar sem
                 case state of
                   (n,(blocker:blockers)) -> do putMVar sem (n,blockers)
@@ -67,7 +67,7 @@ qsem_Q sem = mask_ $
                   (n,[])                 -> putMVar sem (n+1, [])
 
 nmergeIO_E :: [[a]] -> IO [a]
-nmergeIO_E lss 
+nmergeIO_E lss
     = do let !len = length lss
          tl_node   <- newEmptyMVar
          tl_list   <- newMVar tl_node
@@ -79,11 +79,11 @@ nmergeIO_E lss
          val <- takeMVar tl_node
          qsem_Q sem
          return val
-        
+
 suckIO_E :: MVar Int -> (MVar (MVar [a]),QSem_E) -> [a] -> IO ()
 suckIO_E count_var buff@(tl_list,sem) vs
     = do count <- takeMVar count_var
-         if count == 1 
+         if count == 1
             -- last writer, identify own list with result
             then do node <- takeMVar tl_list
                     putMVar node vs
@@ -105,7 +105,7 @@ suckIO_E count_var buff@(tl_list,sem) vs
                                    next_val <- unsafeInterleaveIO
                                                  (do y <- takeMVar next
                                                      qsem_Q sem
-                                                     return y) 
+                                                     return y)
                                    putMVar node (x:next_val)
                                    putMVar tl_list next
                                    suckIO_E count_var buff xs

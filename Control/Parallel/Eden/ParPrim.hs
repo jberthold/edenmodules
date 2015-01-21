@@ -4,7 +4,7 @@
 -- Module      :  Control.Parallel.Eden.ParPrim
 -- Copyright   :  (c) Philipps Universitaet Marburg 2005-2010
 -- License     :  BSD-style (see the file LICENSE)
--- 
+--
 -- Maintainer  :  eden@mathematik.uni-marburg.de
 -- Stability   :  beta
 -- Portability :  not portable
@@ -12,15 +12,15 @@
 -- Provides primitive functions for explicit distributed functional programming.
 -- Base module, importing PrimOps => exporting IO actions
 --
--- Depends on GHC. Using standard GHC, you will get a threaded simulation of the 
--- parallel primitives. 
--- Use the special GHC-Eden compiler from http:\/\/www.mathematik.uni-marburg.de/~eden 
+-- Depends on GHC. Using standard GHC, you will get a threaded simulation of the
+-- parallel primitives.
+-- Use the special GHC-Eden compiler from http:\/\/www.mathematik.uni-marburg.de/~eden
 -- for parallel execution with distributed heaps.
 --
 -- Eden Group Marburg ( http:\/\/www.mathematik.uni-marburg.de/~eden )
--- 
+--
 -----------------------------------------------
-#if defined(NOT_PARALLEL)    
+#if defined(NOT_PARALLEL)
 #warning  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\
  BUILDING A CONCURRENT HASKELL SIMULATION OF THE PARALLEL PRIMITIVES,\
  DON'T EXPECT BIG SPEEDUPS! USE THE EDEN VERSION OF GHC FROM \
@@ -41,20 +41,20 @@ module Control.Parallel.Eden.ParPrim(
      , createC        -- creating placeholders :: IO (ChanName' a, a)
      , connectToPort  -- set thread's receiver :: ChanName' a -> IO ()
      , sendData       -- sending data to recv. :: Mode -> a -> IO ()
-     , Mode(..)       -- send modes:  implemented: 
+     , Mode(..)       -- send modes:  implemented:
                       --      1 - connect (no graph needed)
                       --      2 - stream  (list element)
                       --      3 - single  (single value)
                       --      4 - rFork   (receiver creates a thread, different ports)
                       -- additional payload (currently only for rFork) in high bits
-	      ) 
+              )
    where
 
 
 import GHC.IO(IO(..))
-import GHC.Base(Int#, Int(..), (+#), 
-		fork#, expectData#, connectToPort#, sendData#
-	       )
+import GHC.Base(Int#, Int(..), (+#),
+                fork#, expectData#, connectToPort#, sendData#
+               )
 
 import Foreign.C(CInt)
 import GHC.Ptr(Ptr)
@@ -91,7 +91,7 @@ data ChanName' a = Chan Int# Int# Int#
 -- tweaking fork primop from concurrent haskell... (not returning threadID)
 {-# NOINLINE fork #-}
 fork :: IO () -> IO ()
-fork action = IO (\s -> case (fork# action s) of 
+fork action = IO (\s -> case (fork# action s) of
                           (# s' , _ #) -> (# s' , () #)
                  )
 
@@ -99,7 +99,7 @@ fork action = IO (\s -> case (fork# action s) of
 {-# NOINLINE createC #-}
 -- returns consistent channel type (channel of same type as data)
 createC :: IO ( ChanName' a, a )
-createC = IO (\s -> case (expectData# s) of 
+createC = IO (\s -> case (expectData# s) of
                      (# s',i,p, bh #) -> case selfPe_ s' of
                                             (# s'', I# pe #) ->
                                                 (# s'',(Chan pe p i, bh) #)
@@ -111,34 +111,34 @@ createC = IO (\s -> case (expectData# s) of
 
 {-# NOINLINE connectToPort #-}
 connectToPort_ :: Int# -> Int# -> Int# -> IO ()
-connectToPort_ pe proc i 
+connectToPort_ pe proc i
     = IO (\s -> case (connectToPort# pe proc i s) of
-	                   s' -> (# s', () #)
-	 )
+                           s' -> (# s', () #)
+         )
 
 connectToPort :: ChanName' a -> IO ()
 connectToPort (Chan p proc i) = connectToPort_ p proc i
 
 -- send modes for sendData
 data Mode = Connect -- announce sender at receiver side (no graph needed)
-	  | Data    -- data to send is single value
-	  | Stream  -- data to send is element of a list/stream
-	  | Instantiate Int -- data is IO(), receiver to create a thread for it
+          | Data    -- data to send is single value
+          | Stream  -- data to send is element of a list/stream
+          | Instantiate Int -- data is IO(), receiver to create a thread for it
 decodeMode :: Mode -> Int
 decodeMode Connect         = 1
 decodeMode Stream          = 2
 decodeMode Data            = 3
 decodeMode (Instantiate n) = let k = 4 + n*8
                              in -- k `seq` -- needed to pass NF to PrimOp?
-			        k
+                                k
 -- decodeMode other = error "sendData: no such mode"
 
 {-# NOINLINE sendData #-}
 sendData :: Mode -> a -> IO ()
-sendData mode d 
-    = IO (\s -> case (sendData# m d s) of 
-	                   s' -> (# s', () #)
-	 )
+sendData mode d
+    = IO (\s -> case (sendData# m d s) of
+                           s' -> (# s', () #)
+         )
       where !(I# m) = decodeMode mode
-#endif 
+#endif
   --NOT_PARALLEL
