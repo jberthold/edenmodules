@@ -1,4 +1,5 @@
-{-# OPTIONS -XCPP -XGeneralizedNewtypeDeriving -XExistentialQuantification -XDeriveDataTypeable #-}
+{-# OPTIONS -XCPP -XGeneralizedNewtypeDeriving -XExistentialQuantification -XDeriveDataTypeable  #-}
+{-# LANGUAGE Rank2Types #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Control.Parallel.Eden.EdenConcHs
@@ -332,14 +333,17 @@ mergeProc = merge
 -- overloading trick: a "communicator" provides a suitable
 -- communication function for the overloaded type
 
--- type Comm a = (a -> IO())
--- JB20061017: leads to obscure runtime errors
--- Must use an own data type like this:
+-- A communicator is a wrapper for a function which is expected to
+-- send a value over a (previously wired-in) channel.
+-- Therefore, any use of a (Comm a) must imply/require (Trans a).
+-- Since GHC 7.11, the type must indicate the assumed communication,
+-- to avoid "redundant constraint" warnings (for constraints Trans _,
+-- which are in fact not redundant at all).
+newtype Comm a = Comm (Trans a => a -> IO())
 
-newtype Comm a = Comm (a -> IO())
--- assumed: contained function sends a over a (previously wired-in) channel
-instance NFData (Comm a) where rnf (Comm x) = seq x ()
-                         -- only rwhnf possible, as x is a function
+-- The NFData instance is bogus, as x is a function (only rwhnf
+-- possible), but needed for remote data release/fetch.
+instance Trans a => NFData (Comm a) where rnf (Comm x) = seq x ()
 
 -- | A channel name @ChanName a@ is a handle for a reply channel. The channel
 -- can be created with the function new and you can connect to such a channel
@@ -529,7 +533,8 @@ instance (Trans a) => Trans [a]  where
 
 
 -- "higher-order channels"
-instance (NFData a, Trans a) => Trans (Comm a)
+-- (needed for remote data release/fetch)
+instance Trans a => Trans (Comm a)
 
 -- tuple instances:
 instance (Trans a, Trans b) => Trans (a,b)
@@ -611,9 +616,7 @@ instance (Trans a, Trans b, Trans c, Trans d, Trans e, Trans f, Trans g, Trans h
 -- helper functions for Trans class:
 
 -- send function for a single data type (no tuple, non-concurrent)
-sendVia :: (NFData a,
-             Trans a)
-            => (ChanName' a) -> a -> IO()
+sendVia :: Trans a => (ChanName' a) -> a -> IO()
 sendVia c d = connectToPort c >>
               (sendData Connect d) >> -- optional: connect before evaluation
               write d
