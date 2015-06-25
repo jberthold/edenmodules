@@ -4,7 +4,7 @@
 -- Module      :  Control.Parallel.Eden.Edi
 -- Copyright   :  (c) Philipps Universitaet Marburg 2005-2010
 -- License     :  BSD-style (see the file LICENSE)
--- 
+--
 -- Maintainer  :  eden@mathematik.uni-marburg.de
 -- Stability   :  beta
 -- Portability :  not portable
@@ -20,12 +20,12 @@
 -- Eden Group Marburg
 --
 
-module Control.Parallel.Eden.Edi 
+module Control.Parallel.Eden.Edi
 -- interface:
    (fork,           -- :: IO () -> IO (), from conc.hs, without ThreadID
     spawnProcessAt, -- :: Int -> IO () -> IO ()
     spawnArgsProcessAt, -- ::NFData a =>  Int -> (a -> IO ()) -> a -> IO ()
-    ChanName',      -- EdI channel type 
+    ChanName',      -- EdI channel type
     createC,        -- :: IO (ChanName' a,a) , prim.Op.
     createCs,       -- :: Int -> IO ([ChanName' a],[a])
     sendWith,       -- :: (Strategy a) -> ChanName' a -> a -> IO ()
@@ -34,8 +34,8 @@ module Control.Parallel.Eden.Edi
     sendNFStream,   -- :: NFData a => ChanName' [a] -> [a] -> IO ()
     noPe, selfPe,   -- :: IO Int
     NFData(..), -- reexported from Control.Deepseq
-    using, r0, rseq, rdeepseq, seqList, seqFoldable 
-                -- reexported from Control.Seq (sequential strategies) 
+    using, r0, rseq, rdeepseq, seqList, seqFoldable
+                -- reexported from Control.Seq (sequential strategies)
                 -- selection rationale: same export as Eden module
    )
    where
@@ -49,7 +49,7 @@ import Control.Parallel.Eden.ParPrim as ParPrim
 #endif
 
 import Control.DeepSeq(NFData(..))
-import Control.Seq (Strategy, using, 
+import Control.Seq (Strategy, using,
                        r0, rseq, rdeepseq, seqList, seqFoldable)
 
 -- Helper function: Despite its name, seq does not guarantee sequence! We
@@ -58,7 +58,7 @@ import Control.Seq (Strategy, using,
 pseq :: () -> b -> b -- strategy application -> b -> b
 pseq strat_x y = if strat_x == () then y else error "Impossible case!"
 infixr 0 `pseq`
--- We could import this from Control.Parallel.Strategies, but want to 
+-- We could import this from Control.Parallel.Strategies, but want to
 -- decouple the code from that module
 
 
@@ -69,9 +69,9 @@ spawnProcessAt pe action = sendData (Instantiate pe) action
 
 -- additional: force evaluation of arguments (uncurried version)
 spawnArgsProcessAt :: NFData a => Int -> (a -> IO()) -> a -> IO ()
-spawnArgsProcessAt pe argsAction args 
-               = (rnf args `seq` 
-		  sendData (Instantiate pe) (argsAction args))
+spawnArgsProcessAt pe argsAction args
+               = (rnf args `seq`
+                  sendData (Instantiate pe) (argsAction args))
 
 -- Communication:
 -----------------
@@ -83,18 +83,18 @@ instance NFData (ChanName' a) where rnf x = seq x ()
 -- creation of n channels in one call, "safe" evaluation
 createCs :: Int -> IO ([ChanName' a],[a])
 createCs n | n >= 0 = do list <- sequence (replicate n createC)
-			 let (cs, vs) = unzip list
+                         let (cs, vs) = unzip list
                          rnf cs `pseq` -- channels fully evaluated
                          -- spine vs `seq` -- value list spine (optional)
                             return (cs,vs)
            | otherwise = error "createCs: n < 0"
-             
+
 
 -- Evaluation / Communication:
 ------------------------------
 sendWith :: Strategy a -> ChanName' a -> a -> IO ()
 --  Strategy a => a -> ()
-sendWith strat c d = connectToPort c >> 
+sendWith strat c d = connectToPort c >>
                      (strat d `pseq` sendData Data d)
 
 -- sendChan with evaluation, without Connect message
@@ -103,7 +103,7 @@ sendNF = sendWith rnf
 
 sendStreamWith :: (a -> ()) -> ChanName' [a] -> [a] -> IO ()
 --  Strategy a => a -> ()
-sendStreamWith strat c xs = connectToPort c >> 
+sendStreamWith strat c xs = connectToPort c >>
                             send xs
     where send l@[]   = sendData Data l
           send (x:xs) = strat x `pseq` sendData Stream x >>
@@ -124,23 +124,22 @@ rnfM x = case rnf x of { () -> return () } -- works as well
 
 -- send without evaluation or Connect message
 sendVia :: ChanName' a -> a -> IO ()
-sendVia c d = connectToPort c >> 
-	      sendData Data d
-		      
+sendVia c d = connectToPort c >>
+              sendData Data d
+
 -- send with NF evaluation and Connect message
 connectSendNFvia :: NFData a => ChanName' a -> a -> IO ()
-connectSendNFvia c d = connectToPort c >> 
-		       sendData Connect d >>
-		       rnfM d >>
-		       sendData Data d
+connectSendNFvia c d = connectToPort c >>
+                       sendData Connect d >>
+                       rnfM d >>
+                       sendData Data d
 
--- sendStream: Connect message followed by element-wise NF evaluation/send 
+-- sendStream: Connect message followed by element-wise NF evaluation/send
 sendStreamNFvia :: NFData a => ChanName' [a] -> [a] -> IO ()
-sendStreamNFvia c d = connectToPort c >> 
-		      sendData Connect d >>
-		      sendStream' d
+sendStreamNFvia c d = connectToPort c >>
+                      sendData Connect d >>
+                      sendStream' d
     where sendStream'  l@[] = sendData Data l
-	  sendStream' (x:xs)= rnfM x >>
-			      sendData Stream x >> 
-			      sendStream' xs
-
+          sendStream' (x:xs)= rnfM x >>
+                              sendData Stream x >>
+                              sendStream' xs
