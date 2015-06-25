@@ -612,9 +612,9 @@ instance (Trans a, Trans b, Trans c, Trans d, Trans e, Trans f, Trans g, Trans h
 sendVia :: (NFData a, 
 	     Trans a) 
 	    => (ChanName' a) -> a -> IO()
-sendVia c d = connectToPort c >>
-              (sendData Connect d) >> -- optional: connect before evaluation
-	      write d
+sendVia c d = do connectToPort c
+                 sendData Connect d -- optional: connect before evaluation
+	         write d
 
 ---------------------------------------------------------
 -- send functions for tuples...
