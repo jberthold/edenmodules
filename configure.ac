@@ -30,7 +30,7 @@ cat > conftest.hs << EOF
 {-#  OPTIONS_GHC -XMagicHash #-}
 module Edentest where
 import GHC.Base(expectData#, connectToPort#, sendData# )
-test s = expectData# s
+test s = sendData# s
 EOF
 #try to compile this, using WithGhc:
 AS_IF( $WithGhc -c conftest.hs 2>&AS_MESSAGE_LOG_FD ,
