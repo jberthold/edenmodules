@@ -25,7 +25,7 @@ description:
     provides more documentation and a tutorial.
 
 category:       Control, Distributed Computing, Eden, Parallelism
-build-type:     Configure
+build-type:     Simple
 cabal-version:  >=1.6
 
 extra-source-files: 
