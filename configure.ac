@@ -27,7 +27,7 @@ AC_MSG_CHECKING([for Eden extensions to the GHC runtime system])
 # create Haskell which imports primitives
 rm -f conftest.*; 
 cat > conftest.hs << EOF
-{-#  OPTIONS_GHC -XMagicHash, -XUnboxedTuples #-}
+{-#  OPTIONS_GHC -XMagicHash -XUnboxedTuples #-}
 module Edentest where
 import GHC.Base(expectData#, connectToPort#, sendData# )
 test s = expectData# s
