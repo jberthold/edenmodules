@@ -101,7 +101,7 @@ module Control.Parallel.Eden.EdenConcHs(
         )
     where
 
-import Control.Concurrent      -- Instances only
+import Control.Concurrent()              -- Instances only
 import System.IO.Unsafe(unsafePerformIO) -- for functional face
 import qualified Control.Parallel.Eden.ParPrim as ParPrim
 import Control.Parallel.Eden.ParPrim hiding(noPe,selfPe)
@@ -530,7 +530,7 @@ instance (Trans a) => Trans [a]  where
                         let ex = RemoteException pe (e::E.SomeException)
                         sendData Data (E.throw ex))
       where
-        write' x = rdeepseq x `pseq` sendData Stream x
+        write' y = rdeepseq y `pseq` sendData Stream y
 
 
 -- "higher-order channels"

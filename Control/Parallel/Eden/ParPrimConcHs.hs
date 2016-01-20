@@ -45,7 +45,6 @@ import Data.Map(Map)
 import System.IO.Unsafe
 import Control.Concurrent
 import GHC.Conc(numCapabilities)
-import Control.DeepSeq
 
 -- Concurrent-Haskell simulation of Eden PrimOps
 ----------------------------------------------------------
@@ -100,8 +99,8 @@ type ThreadInfo = (Int,Int,Maybe Int)
 --    (first time called: created with first thread as an entry)
 {-# NOINLINE thrs #-}
 thrs :: MVar (Map ThreadId (Int,Int,Maybe Int))
-thrs = unsafePerformIO (myThreadId >>= \id ->
-          newMVar (Map.insert id (1,1,Nothing) Map.empty ))
+thrs = unsafePerformIO (myThreadId >>= \tid ->
+          newMVar (Map.insert tid (1,1,Nothing) Map.empty ))
 
 -- retrieving own thread information
 myInfo :: IO ThreadInfo
@@ -121,9 +120,9 @@ myChan = do (_,_,c) <- myInfo
 
 -- when thread finished:
 removeThread :: ThreadId -> IO ()
-removeThread id = do trace ("Kill " ++ show id)
-                     thrMap <- takeMVar thrs
-                     putMVar thrs (Map.delete id thrMap)
+removeThread tid = do trace ("Kill " ++ show tid)
+                      thrMap <- takeMVar thrs
+                      putMVar thrs (Map.delete tid thrMap)
 
 
 -- table of open channels, and channel lookup
@@ -137,37 +136,37 @@ chs = unsafePerformIO (newMVar Map.empty)
 
 -- for Connect messages: only register the calling thread as the sender
 registerSender :: Int -> IO ()
-registerSender id
+registerSender i
     = do cMap <- takeMVar chs
          tid  <- myThreadId
-         case Map.lookup id cMap of
-            Nothing      -> error $ "missing MVar for Id " ++ show id
+         case Map.lookup i cMap of
+            Nothing      -> error $ "missing MVar for Id " ++ show i
             Just (t,var) -> if (t == Nothing || t == Just tid)
                               then do putMVar chs
-                                        (Map.insert id (Just tid,var) cMap)
+                                        (Map.insert i (Just tid,var) cMap)
                               else error ("duplicate connect message: "
                                           ++ show tid ++ "->"
-                                          ++ show id)
+                                          ++ show i)
 
 -- for receiving messages, removes the channel (Data message)
 getRemoveCVar :: Int -> IO (MVar Untyped)
-getRemoveCVar id = do cMap <- takeMVar chs
-                      case Map.lookup id cMap of
-                        Nothing       -> error ("missing MVar for Id "
-                                                   ++ show id)
-                        Just (_,var)  -> do putMVar chs (Map.delete id cMap)
-                                            return var
+getRemoveCVar i = do cMap <- takeMVar chs
+                     case Map.lookup i cMap of
+                       Nothing       -> error ("missing MVar for Id "
+                                               ++ show i)
+                       Just (_,var)  -> do putMVar chs (Map.delete i cMap)
+                                           return var
 
 -- for receiving stream messages, updates the channel, checks the sender
 updateGetCVar :: MVar Untyped -> Int -> IO (MVar Untyped )
-updateGetCVar newVar id
+updateGetCVar newVar i
     = do cMap <- takeMVar chs
          tid  <- myThreadId
-         case Map.lookup id cMap of
-           Nothing      -> error $ "missing MVar for Id " ++ show id
+         case Map.lookup i cMap of
+           Nothing      -> error $ "missing MVar for Id " ++ show i
            Just (t,var) -> if (t == Nothing || t == Just tid)
                              then do putMVar chs
-                                       (Map.insert id (Just tid,newVar) cMap)
+                                       (Map.insert i (Just tid,newVar) cMap)
                                      return var
                              else error "1:1 restriction violated"
 
@@ -235,35 +234,35 @@ fork action = do (pe,p,_) <- myInfo
                  tid <- forkIO action'
                  putMVar thrs (Map.insert tid (pe,p,Nothing) tMap)
                  trace ("forked! ID=" ++ show tid)
-    where action' = do id <- myThreadId
-                       trace ("run thread " ++ show id)
+    where action' = do tid <- myThreadId
+                       trace ("run thread " ++ show tid)
                        action
-                       removeThread id
+                       removeThread tid
 
 -- creation of one placeholder and one new inport
 -- returns consistent channel type (channel of same type as data)
 createC :: IO ( ChanName' a, a )
 createC = do (!pe,!p,_) <- myInfo
-             !id <- freshId
+             !i <- freshId
              -- Bang patterns make sure all components of ChanName' are
              -- evaluated when channel is demanded. We get rnf = rwhnf for
              -- ChanName' outside. The real primitive does this by nature.
              var <- newEmptyMVar
-             trace ("new channel in " ++ show (pe,p) ++ ", ID=" ++ show id)
+             trace ("new channel in " ++ show (pe,p) ++ ", ID=" ++ show i)
              cList <- takeMVar chs
              let x = unsafePerformIO $ readMVar var
                  x' = fromDyn (error "createC cast") x
-             putMVar chs (Map.insert id (Nothing,var) cList)
+             putMVar chs (Map.insert i (Nothing,var) cList)
              trace "channel created!"
-             return (Chan pe p id, x' )
+             return (Chan pe p i, x' )
 
 -- connect a thread to a channel
 connectToPort :: ChanName' a -> IO ()
-connectToPort (Chan pe p cid)
-                   = do id <- myThreadId
+connectToPort (Chan _ _ cid)
+                   = do tid <- myThreadId
                         tlist <- takeMVar thrs
-                        putMVar thrs (Map.updateWithKey newChan id tlist)
-      where newChan _ (pe,proc,_) = Just (pe,proc, Just cid)
+                        putMVar thrs (Map.update newC tid tlist)
+      where newC (pe, p, _) = Just (pe, p, Just cid)
 
 -- send modes for sendData
 data Mode = Connect -- announce sender at receiver side (no graph needed)
@@ -293,10 +292,10 @@ sendData (Instantiate maybePe) d
                         else return (1+((maybePe-1) `mod` pes))
               trace ("new process on PE " ++ show pe)
               tlist <- takeMVar thrs
-              id <- forkIO action
-              putMVar thrs (Map.insert id (pe,newPid,Nothing) tlist)
-              trace ("process,thread: " ++ show (newPid,id))
-    where action = do id <- myThreadId
+              tid <- forkIO action
+              putMVar thrs (Map.insert tid (pe,newPid,Nothing) tlist)
+              trace ("process,thread: " ++ show (newPid,tid))
+    where action = do tid <- myThreadId
                       trace ("process starting")
                       toIO d
-                      removeThread id
+                      removeThread tid

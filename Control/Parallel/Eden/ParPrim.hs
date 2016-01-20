@@ -52,7 +52,7 @@ module Control.Parallel.Eden.ParPrim(
 
 
 import GHC.IO(IO(..))
-import GHC.Base(Int#, Int(..), (+#),
+import GHC.Base(Int#, Int(..),
                 fork#, expectData#, connectToPort#, sendData#
                )
 

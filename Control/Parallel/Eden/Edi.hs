@@ -1,4 +1,4 @@
-{-# OPTIONS -XCPP #-}
+{-# OPTIONS -XCPP -fno-warn-unused-binds -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Control.Parallel.Eden.Edi
@@ -39,8 +39,6 @@ module Control.Parallel.Eden.Edi
                 -- selection rationale: same export as Eden module
    )
    where
-
-import Control.Concurrent
 
 #if defined(NOT_PARALLEL)
 import Control.Parallel.Eden.ParPrimConcHs as ParPrim
@@ -106,8 +104,8 @@ sendStreamWith :: (a -> ()) -> ChanName' [a] -> [a] -> IO ()
 sendStreamWith strat c xs = connectToPort c >>
                             send xs
     where send l@[]   = sendData Data l
-          send (x:xs) = strat x `pseq` sendData Stream x >>
-                        send xs
+          send (y:ys) = strat y `pseq` sendData Stream y >>
+                         send ys
 
 sendNFStream :: NFData a => ChanName' [a] -> [a] -> IO ()
 sendNFStream = sendStreamWith rnf
