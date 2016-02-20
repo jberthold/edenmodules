@@ -1,5 +1,6 @@
-{-# OPTIONS -XCPP -XGeneralizedNewtypeDeriving -XExistentialQuantification -XDeriveDataTypeable  #-}
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, DeriveDataTypeable,
+             Rank2Types, ExistentialQuantification #-}
+
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Control.Parallel.Eden.EdenConcHs
@@ -617,9 +618,9 @@ instance (Trans a, Trans b, Trans c, Trans d, Trans e, Trans f, Trans g, Trans h
 
 -- send function for a single data type (no tuple, non-concurrent)
 sendVia :: Trans a => (ChanName' a) -> a -> IO()
-sendVia c d = connectToPort c >>
-              (sendData Connect d) >> -- optional: connect before evaluation
-              write d
+sendVia c d = do connectToPort c
+                 sendData Connect d -- optional: connect before evaluation
+                 write d
 
 ---------------------------------------------------------
 -- send functions for tuples...
