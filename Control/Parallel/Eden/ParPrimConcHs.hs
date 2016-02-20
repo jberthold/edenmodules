@@ -67,6 +67,10 @@ toIO x = case cast x of
            Nothing -> error "IO? wrong cast"
            Just io -> io
 
+#warning Dooooh! This finally doznwok anymore!
+#warning
+#warning The simulation module is broken (unsafe type cast for inport table)
+#warning A fix will require a better way to store various types of inports.
 cast :: a -> Maybe b
 cast x = Just (unsafeCoerce# x)
 toDyn :: a -> Untyped
