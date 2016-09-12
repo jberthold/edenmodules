@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, DeriveDataTypeable,
-             Rank2Types, ExistentialQuantification #-}
+             Rank2Types, ExistentialQuantification, ScopedTypeVariables #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -473,20 +473,17 @@ liftRD4 f x = liftRD3 (f  (fetch x))
 -- | Trans class: overloads communication for streams and tuples.
 -- You need to declare normal-form evaluation in an instance declaration of NFData.
 -- Use the default implementation for @write@ and @createComm@ for instances of Trans.
-class NFData a => Trans a where
+class (Typeable a, NFData a) => Trans a where
     write :: a -> IO ()
     -- exception handler propagates exceptions to receiver (ultimately main)
     write x = (rdeepseq x `pseq` sendData Data x)
               `E.catch` -- do not "redecorate" RemoteExceptions
-              (\e -> sendData Data (E.throw (e::RemoteException)))
+              (\e -> sendData Data (E.throw (e::RemoteException) :: a))
               `E.catch` -- all other exceptions are decorated with origin
                         -- (see RemoteException above)
               (\e -> do pe <- ParPrim.selfPe
                         let ex = RemoteException pe (e::E.SomeException)
-                        sendData Data (E.throw ex))
---    write x = unEval $
---              do x' <- rdeepseq x
---                 return (sendData Data x')
+                        sendData Data ((E.throw ex) :: a))
 
     createComm :: IO (ChanName a, a)
     createComm = do (cx,x) <- createC
@@ -521,12 +518,12 @@ instance (Trans a) => Trans [a]  where
     -- and closes the stream
     write (x:xs) = ((write' x) >> write xs)
               `E.catch` -- do not "redecorate" RemoteExceptions
-              (\e -> sendData Data (E.throw (e::RemoteException)))
+              (\e -> sendData Data (E.throw (e::RemoteException) :: a))
               `E.catch` -- all other exceptions are decorated with origin
                         -- (see RemoteException above)
               (\e -> do pe <- ParPrim.selfPe
                         let ex = RemoteException pe (e::E.SomeException)
-                        sendData Data (E.throw ex))
+                        sendData Data (E.throw ex :: a))
       where
         write' y = rdeepseq y `pseq` sendData Stream y
 

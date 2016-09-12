@@ -1,4 +1,4 @@
- {-# OPTIONS -XScopedTypeVariables -XCPP -XMagicHash -XBangPatterns #-}
+{-# OPTIONS -XScopedTypeVariables -XCPP -XMagicHash -XBangPatterns #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Control.Parallel.Eden.ParPrimConcHs
@@ -41,10 +41,13 @@ import GHC.Base(unsafeCoerce# )
 
 import qualified Data.Map as Map -- collides with prelude functions
 import Data.Map(Map)
+import Data.Maybe(fromJust)
 
 import System.IO.Unsafe
 import Control.Concurrent
 import GHC.Conc(numCapabilities)
+
+import Data.Dynamic
 
 -- Concurrent-Haskell simulation of Eden PrimOps
 ----------------------------------------------------------
@@ -57,26 +60,6 @@ trace msg = do me <- myThreadId
 #else
 trace _ = return ()
 #endif
-
---------------------------------------------------------------------
--- (*) unsafe type casts. cannot use dynamics, missing type context.
--- THIS IS A HAAAAAAAAAAAAACK!!!!!!!! (*)
-
-toIO :: a -> IO ()
-toIO x = case cast x of
-           Nothing -> error "IO? wrong cast"
-           Just io -> io
-
-#warning Dooooh! This finally doznwok anymore!
-#warning
-#warning The simulation module is broken (unsafe type cast for inport table)
-#warning A fix will require a better way to store various types of inports.
-cast :: a -> Maybe b
-cast x = Just (unsafeCoerce# x)
-toDyn :: a -> Untyped
-toDyn x = unsafeCoerce# x
-fromDyn :: a -> Untyped -> a
-fromDyn _ unit = unsafeCoerce# unit
 
 ----------------------------------------------------------
 
@@ -130,12 +113,11 @@ removeThread tid = do trace ("Kill " ++ show tid)
 
 
 -- table of open channels, and channel lookup
--- (channels are MVars, but for values of various types, we use unsafeCoerce)
--- ( to test the 1:1 restriction, we save past senders for stream comm.)
-type Untyped = ()
+-- Channels are MVars, but cast to Dynamic as they may carry various types
+-- (to test the 1:1 restriction, we save past senders for stream comm.)
 
 {-# NOINLINE chs #-}
-chs :: MVar (Map Int (Maybe ThreadId, MVar Untyped))
+chs :: MVar (Map Int (Maybe ThreadId, Dynamic))
 chs = unsafePerformIO (newMVar Map.empty)
 
 -- for Connect messages: only register the calling thread as the sender
@@ -153,26 +135,33 @@ registerSender i
                                           ++ show i)
 
 -- for receiving messages, removes the channel (Data message)
-getRemoveCVar :: Int -> IO (MVar Untyped)
-getRemoveCVar i = do cMap <- takeMVar chs
-                     case Map.lookup i cMap of
-                       Nothing       -> error ("missing MVar for Id "
-                                               ++ show i)
-                       Just (_,var)  -> do putMVar chs (Map.delete i cMap)
-                                           return var
+getRemoveCVar :: Typeable a => Int -> IO (MVar a)
+getRemoveCVar i = do 
+  cMap <- takeMVar chs
+  case Map.lookup i cMap of
+    Nothing       -> error ("missing MVar for Id "
+                            ++ show i)
+    Just (_,varD) -> do putMVar chs (Map.delete i cMap)
+                        return (fromDyn varD errA)
+        where errA = error $ "failed to get MVar holding "
+--                             ++ show (typeOf (undefined :: a))
+
 
 -- for receiving stream messages, updates the channel, checks the sender
-updateGetCVar :: MVar Untyped -> Int -> IO (MVar Untyped )
+updateGetCVar :: Typeable a => MVar a -> Int -> IO (MVar a)
 updateGetCVar newVar i
     = do cMap <- takeMVar chs
          tid  <- myThreadId
+         let newVarD = toDyn newVar
          case Map.lookup i cMap of
            Nothing      -> error $ "missing MVar for Id " ++ show i
-           Just (t,var) -> if (t == Nothing || t == Just tid)
+           Just (t,varD)-> if (t == Nothing || t == Just tid)
                              then do putMVar chs
-                                       (Map.insert i (Just tid,newVar) cMap)
-                                     return var
+                                       (Map.insert i (Just tid,newVarD) cMap)
+                                     return (fromDyn varD errA)
                              else error "1:1 restriction violated"
+             where errA = error $ "Failed to get MVar holding " 
+--                                  ++ show (typeOf (undefined :: a))
 
 -- holds number of PEs simulated (can be changed using simInitPes function
 {-# NOINLINE pesVar #-}
@@ -245,7 +234,7 @@ fork action = do (pe,p,_) <- myInfo
 
 -- creation of one placeholder and one new inport
 -- returns consistent channel type (channel of same type as data)
-createC :: IO ( ChanName' a, a )
+createC :: Typeable a => IO ( ChanName' a, a )
 createC = do (!pe,!p,_) <- myInfo
              !i <- freshId
              -- Bang patterns make sure all components of ChanName' are
@@ -255,10 +244,9 @@ createC = do (!pe,!p,_) <- myInfo
              trace ("new channel in " ++ show (pe,p) ++ ", ID=" ++ show i)
              cList <- takeMVar chs
              let x = unsafePerformIO $ readMVar var
-                 x' = fromDyn (error "createC cast") x
-             putMVar chs (Map.insert i (Nothing,var) cList)
+             putMVar chs (Map.insert i (Nothing, toDyn var) cList)
              trace "channel created!"
-             return (Chan pe p i, x' )
+             return (Chan pe p i, x )
 
 -- connect a thread to a channel
 connectToPort :: ChanName' a -> IO ()
@@ -274,20 +262,19 @@ data Mode = Connect -- announce sender at receiver side (no graph needed)
           | Stream  -- data to send is element of a list/stream
           | Instantiate Int -- data is IO(), receiver to create a thread for it
 
-sendData :: Mode -> a -> IO ()
+sendData :: Typeable a => Mode -> a -> IO ()
 sendData Connect _ = do ch <- myChan
                         registerSender ch
 
 sendData Data d = do cd <- myChan
                      var <- getRemoveCVar cd
-                     putMVar var $ toDyn d
+                     putMVar var d
 
 sendData Stream d = do cd <- myChan
                        v2 <- newEmptyMVar
                        var <- updateGetCVar v2 cd
-                       let x = unsafePerformIO $ readMVar v2
-                           newList = d: fromDyn undefined x
-                       putMVar var $ toDyn newList
+                       let rest = unsafePerformIO $ readMVar v2
+                       putMVar var (d : rest)
 
 sendData (Instantiate maybePe) d
          = do newPid <- freshId
@@ -301,5 +288,5 @@ sendData (Instantiate maybePe) d
               trace ("process,thread: " ++ show (newPid,tid))
     where action = do tid <- myThreadId
                       trace ("process starting")
-                      toIO d
+                      fromJust (cast d :: Maybe (IO ()))
                       removeThread tid

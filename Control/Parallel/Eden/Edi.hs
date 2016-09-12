@@ -46,6 +46,8 @@ import Control.Parallel.Eden.ParPrimConcHs as ParPrim
 import Control.Parallel.Eden.ParPrim as ParPrim
 #endif
 
+import Data.Typeable
+
 import Control.DeepSeq(NFData(..))
 import Control.Seq (Strategy, using,
                        r0, rseq, rdeepseq, seqList, seqFoldable)
@@ -79,7 +81,8 @@ instance NFData (ChanName' a) where rnf x = seq x ()
 
 
 -- creation of n channels in one call, "safe" evaluation
-createCs :: Int -> IO ([ChanName' a],[a])
+createCs :: Typeable a =>
+            Int -> IO ([ChanName' a],[a])
 createCs n | n >= 0 = do list <- sequence (replicate n createC)
                          let (cs, vs) = unzip list
                          rnf cs `pseq` -- channels fully evaluated
@@ -90,16 +93,19 @@ createCs n | n >= 0 = do list <- sequence (replicate n createC)
 
 -- Evaluation / Communication:
 ------------------------------
-sendWith :: Strategy a -> ChanName' a -> a -> IO ()
+sendWith :: Typeable a =>
+            Strategy a -> ChanName' a -> a -> IO ()
 --  Strategy a => a -> ()
 sendWith strat c d = connectToPort c >>
                      (strat d `pseq` sendData Data d)
 
 -- sendChan with evaluation, without Connect message
-sendNF :: NFData a => ChanName' a -> a -> IO ()
+sendNF :: Typeable a =>
+          NFData a => ChanName' a -> a -> IO ()
 sendNF = sendWith rnf
 
-sendStreamWith :: (a -> ()) -> ChanName' [a] -> [a] -> IO ()
+sendStreamWith :: Typeable a =>
+                  (a -> ()) -> ChanName' [a] -> [a] -> IO ()
 --  Strategy a => a -> ()
 sendStreamWith strat c xs = connectToPort c >>
                             send xs
@@ -107,7 +113,8 @@ sendStreamWith strat c xs = connectToPort c >>
           send (y:ys) = strat y `pseq` sendData Stream y >>
                          send ys
 
-sendNFStream :: NFData a => ChanName' [a] -> [a] -> IO ()
+sendNFStream :: Typeable a =>
+                NFData a => ChanName' [a] -> [a] -> IO ()
 sendNFStream = sendStreamWith rnf
 
 --------------------------------------------------------------
@@ -121,19 +128,22 @@ rnfM x = case rnf x of { () -> return () } -- works as well
 -- rnfM  = return . rnf -- doznwork: returns _unevaluated_ (rnf x)
 
 -- send without evaluation or Connect message
-sendVia :: ChanName' a -> a -> IO ()
+sendVia :: Typeable a =>
+           ChanName' a -> a -> IO ()
 sendVia c d = connectToPort c >>
               sendData Data d
 
 -- send with NF evaluation and Connect message
-connectSendNFvia :: NFData a => ChanName' a -> a -> IO ()
+connectSendNFvia :: Typeable a =>
+                    NFData a => ChanName' a -> a -> IO ()
 connectSendNFvia c d = connectToPort c >>
                        sendData Connect d >>
                        rnfM d >>
                        sendData Data d
 
 -- sendStream: Connect message followed by element-wise NF evaluation/send
-sendStreamNFvia :: NFData a => ChanName' [a] -> [a] -> IO ()
+sendStreamNFvia :: (Typeable a, NFData a) =>
+                   ChanName' [a] -> [a] -> IO ()
 sendStreamNFvia c d = connectToPort c >>
                       sendData Connect d >>
                       sendStream' d
