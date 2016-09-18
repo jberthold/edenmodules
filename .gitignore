@@ -1,0 +1,8 @@
+*~
+dist/
+.cabal*
+.stack-work/
+config.log
+config.status
+edenmodules.buildinfo
+cabal.sandbox.config
