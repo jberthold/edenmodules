@@ -26,7 +26,7 @@ description:
 
 category:       Control, Distributed Computing, Eden, Parallelism
 build-type:     Configure
-cabal-version:  >=1.24
+cabal-version:  >=1.22
 
 extra-source-files: 
                 edenmodules.buildinfo.in,

@@ -23,21 +23,22 @@ main = do args <- getArgs
 
           let limit = if null args then 30 else read (head args)
               list  = map (+10) [1..limit]
+              quiet = length args > 1 && args!!1 == "-q" 
 
           let r1s:_ = spawn [process $ map wasteTime ] [list]
               r2s   = spawn (map mkProc r1s) $
-                             repeat 0 -- wanna use repeat () , but see below
-              -- mkProc x = process $ const $ show x
-              -- this variant sends prematurely (const or unit optimised away)
+                             repeat 0
               mkProc :: Show a => a -> Process Int String
               mkProc x = process $  (\n -> if n == 0 then show x else "-")
-#ifndef QUIET
-          putStrLn ("First process maps a computation on " 
-                    ++ show list ++ 
-                    ",\n then secondary processes are spawned on results.")
+              -- mkProc x = process $ const $ show x -- sends too early
 
-          putStrLn ("First process' result starts by " ++ show (head r1s))
-          putStrLn ("Secondary results:  " ++ unwords r2s)
-#else
-          (rnf (head r1s,unwords r2s) `pseq` putStrLn ("Done")
-#endif
+          if not quiet then
+              do putStrLn ("First process maps a computation on " 
+                           ++ show list ++ 
+                           ",\n then secondary processes are spawned on results.")
+
+                 putStrLn ("First process' result starts by "
+                           ++ show (head r1s))
+                 putStrLn ("Secondary results:  " ++ unwords r2s)
+          else rnf (head r1s,unwords r2s) `pseq` return ()
+          if map show r1s == r2s then putStrLn "OK" else error "FAILED"
